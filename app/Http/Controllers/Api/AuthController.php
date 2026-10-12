@@ -7,6 +7,7 @@ use App\Http\Resources\UserResource;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
@@ -51,5 +52,24 @@ class AuthController extends Controller
     public function me(Request $request): UserResource
     {
         return new UserResource($request->user()->load('client'));
+    }
+
+    /** The signed-in user changes their own password. */
+    public function changePassword(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'current_password' => ['required', 'string'],
+            'password' => ['required', 'string', 'min:8', 'confirmed', 'different:current_password'],
+        ]);
+
+        $user = $request->user();
+
+        if (! Hash::check($data['current_password'], $user->password)) {
+            throw ValidationException::withMessages(['current_password' => 'The current password is incorrect.']);
+        }
+
+        $user->update(['password' => $data['password']]); // hashed by the model
+
+        return response()->json(['ok' => true]);
     }
 }

@@ -8,6 +8,7 @@ const routes = [
     { path: '/master/:kind', name: 'master', component: () => import('./views/Master.vue') },
     { path: '/reports/purchase', name: 'report-purchase', component: () => import('./views/reports/Purchase.vue') },
     { path: '/reports/sales-weekly', name: 'report-sales-weekly', component: () => import('./views/reports/SalesWeekly.vue') },
+    { path: '/account/password', name: 'password', component: () => import('./views/Account.vue') },
     { path: '/settings/shifts', name: 'shifts', component: () => import('./views/Shifts.vue') },
     { path: '/admin/clients', name: 'clients', component: () => import('./views/admin/Clients.vue'), meta: { admin: true } },
     { path: '/admin/users', name: 'users', component: () => import('./views/admin/Users.vue'), meta: { admin: true } },

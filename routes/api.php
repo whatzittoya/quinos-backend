@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\Admin\ClientController;
 use App\Http\Controllers\Api\Admin\UserController;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\MasterController;
 use App\Http\Controllers\Api\PurchaseReportController;
 use App\Http\Controllers\Api\SalesWeeklyReportController;
@@ -15,6 +16,7 @@ Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:10
 Route::middleware(['auth:sanctum', 'client.resolve'])->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/me', [AuthController::class, 'me']);
+    Route::put('/me/password', [AuthController::class, 'changePassword'])->middleware('throttle:5,1');
 
     Route::get('/settings/shifts', [ShiftController::class, 'show']);
     Route::put('/settings/shifts', [ShiftController::class, 'update']);
@@ -23,6 +25,7 @@ Route::middleware(['auth:sanctum', 'client.resolve'])->group(function () {
     Route::post('/sync/days', [SyncController::class, 'days'])->middleware('throttle:30,1');
     Route::post('/sync/master', [SyncController::class, 'master'])->middleware('throttle:10,1');
 
+    Route::get('/dashboard', DashboardController::class);
     Route::get('/master/{kind}', [MasterController::class, 'index']);
     Route::get('/reports/purchase', PurchaseReportController::class);
     Route::get('/reports/sales-weekly', SalesWeeklyReportController::class);
