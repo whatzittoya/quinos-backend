@@ -73,7 +73,7 @@ const userEditing = ref(null); // null = list only, 0 = new, id = existing
 const userError = ref('');
 const userSaving = ref(false);
 const userForm = reactive({ name: '', email: '', password: '' });
-const clientUsers = computed(() => users.value.filter((u) => u.client_id === usersFor.value?.id));
+const clientUsers = computed(() => users.value.filter((u) => u.client_id != null && String(u.client_id) === String(usersFor.value?.id)));
 
 async function loadUsers() {
     const { data } = await api('/admin/users');
