@@ -213,6 +213,40 @@ const missingThisMonth = computed(() => cells.value.filter((d) => d && !isFuture
 
 // ---- actions ----------------------------------------------------------------
 
+const waitingCount = computed(() => cells.value.filter((d) => d && stateOf(d) === 'busy').length);
+
+// Start a background worker for what is waiting.
+async function runNow() {
+    busy.value = true;
+    error.value = notice.value = '';
+    try {
+        const res = await api('/sync/run-now', { method: 'POST' });
+        if (res.running) notice.value = 'Started. The waiting days will sync now.';
+        else error.value = res.message;
+        await load({ quiet: true });
+    } catch (e) {
+        error.value = e.message;
+    } finally {
+        busy.value = false;
+    }
+}
+
+// Give up on waiting days (they go back to "not synced" and can be queued again).
+async function cancelWaiting() {
+    busy.value = true;
+    error.value = notice.value = '';
+    try {
+        const res = await api('/sync/cancel', { method: 'POST' });
+        notice.value = `Cancelled ${res.cancelled_days} waiting entr${res.cancelled_days === 1 ? 'y' : 'ies'}.`
+            + (res.still_running ? ` ${res.still_running} still syncing right now.` : '');
+        await load({ quiet: true });
+    } catch (e) {
+        error.value = e.message;
+    } finally {
+        busy.value = false;
+    }
+}
+
 // Reports (data packages) used by "last 7 days", "missing days" and the date range. null = all.
 const reportsPicked = ref(null);
 const pickedReports = computed(() => reportsPicked.value ?? packages.value);
@@ -335,6 +369,12 @@ onBeforeUnmount(() => { clearTimeout(timer); masterBusy.value = false; clearTime
         <template v-else>
             <p v-if="error" class="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{{ error }}</p>
             <p v-if="notice" class="rounded-md bg-sky-50 px-3 py-2 text-sm text-sky-800">{{ notice }}</p>
+
+            <div v-if="waitingCount" class="flex flex-wrap items-center gap-3 rounded-md border border-sky-200 bg-white px-3 py-2 text-sm">
+                <span class="text-slate-700">{{ waitingCount }} day{{ waitingCount > 1 ? 's' : '' }} waiting or syncing in this month.</span>
+                <button class="btn-ghost" :disabled="busy" @click="runNow">Run now</button>
+                <button class="btn-ghost" :disabled="busy" @click="cancelWaiting">Cancel waiting</button>
+            </div>
 
             <div class="grid gap-4 lg:grid-cols-[1fr_20rem]">
                 <section class="card p-4">

@@ -40,6 +40,23 @@ const toggle = (date) => {
     picked.value = picked.value.includes(date) ? picked.value.filter((d) => d !== date) : [...picked.value, date].sort();
 };
 
+const anyBusy = computed(() => props.days.some(isBusy));
+
+// Waiting too long? Start a worker for the queue, or give up on the waiting days.
+async function recover(action) {
+    busy.value = true;
+    error.value = '';
+    try {
+        const res = await api(action === 'run' ? '/sync/run-now' : '/sync/cancel', { method: 'POST' });
+        if (action === 'run' && !res.running) error.value = res.message;
+        emit('queued'); // the page checks the days again
+    } catch (e) {
+        error.value = e.message;
+    } finally {
+        busy.value = false;
+    }
+}
+
 async function queue(dates, force) {
     busy.value = true;
     error.value = '';
@@ -67,6 +84,10 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
         <span class="text-slate-600">All days are synced.</span>
         <button type="button" class="underline" @click="popup = true">Click here to re-sync selected dates</button>
         <span v-if="notice" class="text-slate-500">{{ notice }}</span>
+        <template v-if="anyBusy">
+            <button type="button" class="underline" :disabled="busy" @click="recover('run')">Run now</button>
+            <button type="button" class="underline" :disabled="busy" @click="recover('cancel')">Cancel waiting</button>
+        </template>
     </div>
 
     <!-- The same list is inline when days are missing, and a popup when everything is synced. -->
@@ -94,6 +115,10 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
                 <RouterLink v-if="!asPopup" class="underline" to="/sync">Open Sync page</RouterLink>
                 <button v-if="asPopup" type="button" class="btn-ghost ml-auto" @click="popup = false">Close</button>
                 <span v-if="notice" class="text-slate-500">{{ notice }}</span>
+                <template v-if="anyBusy">
+                    <button type="button" class="underline" :disabled="busy" @click="recover('run')">Run now</button>
+                    <button type="button" class="underline" :disabled="busy" @click="recover('cancel')">Cancel waiting</button>
+                </template>
             </div>
 
             <ul class="max-h-72 columns-1 gap-6 overflow-y-auto sm:columns-2 lg:columns-3">

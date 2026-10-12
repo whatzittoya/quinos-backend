@@ -5,11 +5,14 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Concerns\UsesCurrentClient;
 use App\Http\Controllers\Controller;
 use App\Models\SyncDay;
+use App\Jobs\SyncClientDays;
 use App\Sync\MasterSync;
+use App\Sync\WorkerLauncher;
 use App\Sync\SyncDispatcher;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 class SyncController extends Controller
@@ -93,6 +96,57 @@ class SyncController extends Controller
         $dispatcher->master($client, $data['kinds'] ?? null);
 
         return response()->json(['queued' => true], 202);
+    }
+
+    /**
+     * Give up on days that are waiting: their queued jobs are removed and the days go back to
+     * "not synced". A day that is syncing right now is left alone, unless it has not moved for
+     * a long time, which means the process behind it died.
+     */
+    public function cancel(): JsonResponse
+    {
+        $client = $this->currentClient();
+
+        $jobs = 0;
+
+        foreach (DB::table('jobs')->whereNull('reserved_at')->get(['id', 'payload']) as $row) {
+            $payload = json_decode($row->payload, true);
+
+            if (($payload['displayName'] ?? null) !== SyncClientDays::class) {
+                continue;
+            }
+
+            $job = @unserialize($payload['data']['command'] ?? '', ['allowed_classes' => [SyncClientDays::class]]);
+
+            if ($job instanceof SyncClientDays && $job->clientId === $client->id) {
+                $jobs += DB::table('jobs')->where('id', $row->id)->delete();
+            }
+        }
+
+        $stuck = now()->subMinutes(20);
+
+        $days = SyncDay::where('client_id', $client->id)
+            ->where(fn ($q) => $q->where('status', SyncDay::PENDING)
+                ->orWhere(fn ($q) => $q->where('status', SyncDay::RUNNING)->where('updated_at', '<', $stuck)))
+            ->delete();
+
+        $stillRunning = SyncDay::where('client_id', $client->id)->where('status', SyncDay::RUNNING)->count();
+
+        return response()->json(['cancelled_days' => $days, 'removed_jobs' => $jobs, 'still_running' => $stillRunning]);
+    }
+
+    /** Start a background worker for whatever is waiting in the queue. */
+    public function runNow(): JsonResponse
+    {
+        $this->currentClient();
+
+        $running = WorkerLauncher::ensureRunning();
+
+        return response()->json([
+            'running' => $running,
+            'waiting_jobs' => DB::table('jobs')->count(),
+            'message' => $running ? null : 'This server cannot start a background worker. Add the cron job, or cancel and try again.',
+        ]);
     }
 
     private function requireQuinosLogin($client): void

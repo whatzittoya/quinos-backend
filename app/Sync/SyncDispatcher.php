@@ -82,6 +82,14 @@ class SyncDispatcher
 
     private function start(SyncClientDays $job): void
     {
+        // Best: queue the job and let a background worker pick it up (no web time limit).
+        if (WorkerLauncher::canSpawn()) {
+            dispatch($job);
+            WorkerLauncher::ensureRunning();
+
+            return;
+        }
+
         if (! $this->canRunAfterResponse()) {
             dispatch($job);
 

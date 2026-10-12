@@ -23,6 +23,8 @@ Route::middleware(['auth:sanctum', 'client.resolve'])->group(function () {
 
     Route::get('/sync/calendar', [SyncController::class, 'calendar']);
     Route::post('/sync/days', [SyncController::class, 'days'])->middleware('throttle:30,1');
+    Route::post('/sync/cancel', [SyncController::class, 'cancel'])->middleware('throttle:10,1');
+    Route::post('/sync/run-now', [SyncController::class, 'runNow'])->middleware('throttle:10,1');
     Route::post('/sync/master', [SyncController::class, 'master'])->middleware('throttle:10,1');
 
     Route::get('/dashboard', DashboardController::class);
