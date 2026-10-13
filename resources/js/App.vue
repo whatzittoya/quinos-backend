@@ -33,7 +33,7 @@ const nav = computed(() => [
     },
     { label: 'Shifts', icon: 'clock', to: '/settings/shifts' },
     ...(auth.isAdmin
-        ? [{ label: 'Clients', icon: 'building', to: '/admin/clients' }, { label: 'Users', icon: 'users', to: '/admin/users' }]
+        ? [{ label: 'Clients', icon: 'building', to: '/admin/clients' }, { label: 'Users', icon: 'users', to: '/admin/users' }, { label: 'Runner tokens', icon: 'key', to: '/admin/runner-tokens' }]
         : []),
     { label: 'Change password', icon: 'key', to: '/account/password' },
 ]);

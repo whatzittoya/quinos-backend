@@ -24,6 +24,14 @@ npm run build        # or `npm run dev` for hot reload
 php artisan serve
 ```
 
+## Local sync companion
+
+The ignored `local_sync/` folder is a separate Laravel + Vue runner for Windows machines. Copy `local_sync/.env.example` to `local_sync/.env`, create a MySQL database, run `composer install`, `npm install`, `php artisan key:generate`, and `php artisan migrate` from that folder.
+
+Create an admin-only runner token under **Runner tokens** in the hosted app, then enter the hosted URL and token under **Local runner** in the local app. The local page can test the connection, run all tenants or one tenant, retry failed runs, and create/enable/disable the daily Windows Task Scheduler task.
+
+The local command is `php artisan local:sync --scheduled`; it syncs today and yesterday per tenant timezone, refreshes master data, and uploads acknowledged batches to the hosted runner API.
+
 ## Tests
 
 ```sh

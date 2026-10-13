@@ -38,3 +38,17 @@ Route::middleware(['auth:sanctum', 'client.resolve'])->group(function () {
         Route::apiResource('users', UserController::class)->except('show');
     });
 });
+
+// Machine API: separate from browser sessions and tenant-header selection.
+Route::prefix('runner/v1')->middleware(\App\Http\Middleware\AuthenticateRunner::class)->group(function () {
+    Route::get('/tenants', \App\Http\Controllers\Api\Runner\TenantController::class);
+    Route::post('/imports', [\App\Http\Controllers\Api\Runner\ImportController::class, 'begin']);
+    Route::put('/imports/{id}/chunks/{sequence}', [\App\Http\Controllers\Api\Runner\ImportController::class, 'chunk'])->whereNumber('sequence');
+    Route::post('/imports/{id}/commit', [\App\Http\Controllers\Api\Runner\ImportController::class, 'commit']);
+});
+Route::prefix('admin/runner-tokens')->middleware(['auth:sanctum', 'admin'])->group(function () {
+    Route::get('', [\App\Http\Controllers\Api\Admin\RunnerTokenController::class, 'index']);
+    Route::post('', [\App\Http\Controllers\Api\Admin\RunnerTokenController::class, 'store']);
+    Route::post('/{runnerToken}/revoke', [\App\Http\Controllers\Api\Admin\RunnerTokenController::class, 'revoke']);
+    Route::delete('/{runnerToken}', [\App\Http\Controllers\Api\Admin\RunnerTokenController::class, 'destroy']);
+});

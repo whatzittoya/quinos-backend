@@ -11,6 +11,7 @@ const routes = [
     { path: '/account/password', name: 'password', component: () => import('./views/Account.vue') },
     { path: '/settings/shifts', name: 'shifts', component: () => import('./views/Shifts.vue') },
     { path: '/admin/clients', name: 'clients', component: () => import('./views/admin/Clients.vue'), meta: { admin: true } },
+    { path: '/admin/runner-tokens', name: 'runner-tokens', component: () => import('./views/admin/RunnerTokens.vue'), meta: { admin: true } },
     { path: '/admin/users', name: 'users', component: () => import('./views/admin/Users.vue'), meta: { admin: true } },
     { path: '/:pathMatch(.*)*', redirect: '/' },
 ];

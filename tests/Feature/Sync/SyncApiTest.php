@@ -59,7 +59,7 @@ class SyncApiTest extends TestCase
         $response = $this->actingAs($this->user)->getJson('/api/sync/calendar?month=2026-10')->assertOk();
 
         $response->assertJsonPath('today', '2026-10-09')
-            ->assertJsonPath('packages', ['purchase'])
+            ->assertJsonPath('packages', ['purchase', 'sales'])
             ->assertJsonPath('days.2026-10-08.purchase.status', 'done')
             ->assertJsonPath('days.2026-10-08.purchase.rows', 7)
             ->assertJsonPath('days.2026-10-09.purchase.error', 'Quinos rejected the login')
@@ -98,7 +98,7 @@ class SyncApiTest extends TestCase
         Queue::assertPushed(SyncClientDays::class, fn ($job) => $job->clientId === $this->zali->id
             && $job->dates === ['2026-10-08', '2026-10-09'] && $job->force === false);
 
-        $this->assertSame(2, SyncDay::where('client_id', $this->zali->id)->where('status', 'pending')->count());
+        $this->assertSame(4, SyncDay::where('client_id', $this->zali->id)->where('status', 'pending')->count());
     }
 
     public function test_days_that_are_already_waiting_are_not_queued_twice(): void
