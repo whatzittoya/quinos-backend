@@ -42,6 +42,7 @@ Route::middleware(['auth:sanctum', 'client.resolve'])->group(function () {
 // Machine API: separate from browser sessions and tenant-header selection.
 Route::prefix('runner/v1')->middleware(\App\Http\Middleware\AuthenticateRunner::class)->group(function () {
     Route::get('/tenants', \App\Http\Controllers\Api\Runner\TenantController::class);
+    Route::get('/tenants/{id}/sync-days', \App\Http\Controllers\Api\Runner\SyncDaysController::class)->whereNumber('id');
     Route::post('/imports', [\App\Http\Controllers\Api\Runner\ImportController::class, 'begin']);
     Route::put('/imports/{id}/chunks/{sequence}', [\App\Http\Controllers\Api\Runner\ImportController::class, 'chunk'])->whereNumber('sequence');
     Route::post('/imports/{id}/commit', [\App\Http\Controllers\Api\Runner\ImportController::class, 'commit']);

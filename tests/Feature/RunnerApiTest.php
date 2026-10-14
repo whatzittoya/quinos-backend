@@ -52,4 +52,19 @@ class RunnerApiTest extends TestCase
         $this->withHeader('Authorization', 'Bearer '.$secret)->getJson('/api/runner/v1/tenants')
             ->assertOk()->assertJsonPath('tenants.0.id', $client->id)->assertJsonPath('tenants.0.quinos_email', 'q@example.com')->assertJsonPath('tenants.0.quinos_password', 'secret');
     }
+
+    public function test_runner_can_read_which_days_hosted_has_synced(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $client = Client::factory()->create();
+        $other = Client::factory()->create();
+        $secret = Str::random(64);
+        RunnerToken::create(['name' => 'runner', 'token_hash' => hash('sha256', $secret), 'created_by' => $admin->id]);
+        \App\Models\SyncDay::create(['client_id' => $client->id, 'package' => 'sales', 'date' => '2026-09-29', 'status' => 'done', 'rows' => 12, 'synced_at' => now()]);
+        \App\Models\SyncDay::create(['client_id' => $client->id, 'package' => 'sales', 'date' => '2026-09-30', 'status' => 'failed']);
+        \App\Models\SyncDay::create(['client_id' => $other->id, 'package' => 'sales', 'date' => '2026-09-28', 'status' => 'done']);
+        $this->getJson('/api/runner/v1/tenants/'.$client->id.'/sync-days')->assertUnauthorized();
+        $this->withHeader('Authorization', 'Bearer '.$secret)->getJson('/api/runner/v1/tenants/'.$client->id.'/sync-days')
+            ->assertOk()->assertJsonCount(1, 'days')->assertJsonPath('days.0.date', '2026-09-29')->assertJsonPath('days.0.rows', 12);
+    }
 }
