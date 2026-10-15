@@ -67,4 +67,28 @@ class RunnerApiTest extends TestCase
         $this->withHeader('Authorization', 'Bearer '.$secret)->getJson('/api/runner/v1/tenants/'.$client->id.'/sync-days')
             ->assertOk()->assertJsonCount(1, 'days')->assertJsonPath('days.0.date', '2026-09-29')->assertJsonPath('days.0.rows', 12);
     }
+
+    public function test_import_commits_when_the_database_returns_numbers_as_strings(): void
+    {
+        // Production MySQL hands integers back as strings; commit compared the chunk count with ===.
+        $admin = User::factory()->admin()->create();
+        $client = Client::factory()->create();
+        $secret = Str::random(64);
+        RunnerToken::create(['name' => 'runner', 'token_hash' => hash('sha256', $secret), 'created_by' => $admin->id]);
+        $id = (string) Str::uuid();
+        $headers = ['Authorization' => 'Bearer '.$secret];
+        $date = now($client->timezone)->toDateString();
+        $this->withHeaders($headers)->postJson('/api/runner/v1/imports', [
+            'id' => $id, 'client_id' => $client->id, 'package' => 'sales', 'dates' => [$date],
+            'source_synced_at' => now()->subMinute()->toIso8601String(), 'chunk_count' => 1,
+        ])->assertOk();
+        $this->withHeaders($headers)->putJson('/api/runner/v1/imports/'.$id.'/chunks/0', ['tables' => ['sales_transactions' => []]])->assertOk();
+
+        $import = \App\Models\RunnerImport::findOrFail($id);
+        $import->setRawAttributes(array_merge($import->getAttributes(), ['chunk_count' => '1']), true);
+        $this->assertSame(1, $import->chunk_count);
+
+        \Illuminate\Support\Facades\DB::table('runner_imports')->where('id', $id)->update(['chunk_count' => 1]);
+        $this->withHeaders($headers)->postJson('/api/runner/v1/imports/'.$id.'/commit')->assertOk()->assertJsonPath('status', 'success');
+    }
 }
