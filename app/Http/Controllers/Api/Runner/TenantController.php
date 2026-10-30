@@ -21,6 +21,8 @@ class TenantController extends Controller
             'quinos_company_id' => $client->quinos_company_id, 'shift_assign_by' => $client->shift_assign_by,
             'shifts' => $client->shifts->map->only(['label', 'starts_at', 'ends_at', 'position'])->all(),
             'has_mobile_api_token' => filled($client->mobile_api_token_hash),
+            'mobile_api_token' => $client->mobile_api_token,
+            'mobile_api_url' => $client->mobile_api_token ? $client->mobileApiUrl($client->mobile_api_token) : null,
         ];
     }
 }

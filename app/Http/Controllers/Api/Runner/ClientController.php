@@ -36,7 +36,7 @@ class ClientController extends Controller
     public function removeMobileToken(int $id)
     {
         $client = Client::findOrFail($id);
-        $client->forceFill(['mobile_api_token_hash' => null])->save();
+        $client->setMobileApiToken(null);
         return ['tenant' => TenantController::config($client)];
     }
 }

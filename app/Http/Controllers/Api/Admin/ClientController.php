@@ -65,7 +65,7 @@ class ClientController extends Controller
 
     public function removeMobileToken(Client $client): ClientResource
     {
-        $client->forceFill(['mobile_api_token_hash' => null])->save();
+        $client->setMobileApiToken(null);
 
         return new ClientResource($client);
     }
@@ -73,7 +73,7 @@ class ClientController extends Controller
     public static function setMobileToken(Client $client, ?string $token): void
     {
         if (filled($token)) {
-            $client->forceFill(['mobile_api_token_hash' => hash('sha256', $token)])->save();
+            $client->setMobileApiToken($token);
         }
     }
 

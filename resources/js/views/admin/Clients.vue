@@ -37,8 +37,12 @@ function open(client = null) {
     editing.value = client ? client.id : 0;
 }
 
-// Mobile API key: made on the server and shown once (only its hash is stored).
+// Mobile API key: made on the server; it can be shown again any time.
 const apiKey = ref(null); // { client, token, url }
+
+function showApiKey(client) {
+    apiKey.value = { client: client.name, token: client.mobile_api_token, url: client.mobile_api_url };
+}
 const apiKeyError = ref('');
 const apiKeyBusy = ref(false);
 
@@ -78,6 +82,7 @@ async function save() {
         const body = { ...form };
         delete body.has_quinos_password;
         delete body.has_mobile_api_token;
+        delete body.mobile_api_url;
         if (editing.value === 0) {
             await api('/admin/clients', { method: 'POST', body });
         } else {
@@ -173,7 +178,7 @@ onMounted(load);
         <p v-if="apiKeyError" role="alert" class="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{{ apiKeyError }}</p>
         <div v-if="apiKey" class="card space-y-3 p-4">
             <p class="text-sm">
-                New mobile API key for <b>{{ apiKey.client }}</b>. Copy it now: it is shown only once.
+                Mobile API key for <b>{{ apiKey.client }}</b>.
             </p>
             <div class="flex gap-2">
                 <input :value="apiKey.token" readonly class="field font-mono" aria-label="API key">
@@ -211,8 +216,13 @@ onMounted(load);
                             <span :class="c.active ? 'text-green-700' : 'text-slate-400'">{{ c.active ? 'Active' : 'Disabled' }}</span>
                         </td>
                         <td class="whitespace-nowrap px-4 py-3">
-                            <span :class="c.has_mobile_api_token ? 'text-green-700' : 'text-slate-400'">{{ c.has_mobile_api_token ? 'Set' : 'Not set' }}</span>
-                            <button class="btn-ghost ml-2" :disabled="apiKeyBusy" @click="generateApiKey(c)">
+                            <template v-if="c.mobile_api_token">
+                                <code class="text-xs text-slate-600">{{ c.mobile_api_token.slice(0, 8) }}…</code>
+                                <button class="btn-ghost ml-1" @click="showApiKey(c)">Show</button>
+                            </template>
+                            <span v-else-if="c.has_mobile_api_token" class="text-amber-700" title="Set before keys could be shown again. Regenerate to see it.">Set (hidden)</span>
+                            <span v-else class="text-slate-400">Not set</span>
+                            <button class="btn-ghost ml-1" :disabled="apiKeyBusy" @click="generateApiKey(c)">
                                 {{ c.has_mobile_api_token ? 'Regenerate' : 'Generate API key' }}
                             </button>
                             <button v-if="c.has_mobile_api_token" class="btn-ghost" @click="removeApiKey(c)">Remove</button>
@@ -259,7 +269,7 @@ onMounted(load);
                     >
                     <p class="mt-1 text-xs text-slate-500">
                         To keep the app's current URL, paste the client's old quinoscloud token here. For a new key, use
-                        <b>Generate API key</b> in the client list.
+                        <b>Generate API key</b> in the client list; <b>Show</b> there displays the current key.
                     </p>
                 </div>
                 <div>

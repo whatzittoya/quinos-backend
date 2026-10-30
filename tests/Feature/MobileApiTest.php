@@ -135,7 +135,13 @@ class MobileApiTest extends TestCase
         $this->getJson("/api/cloud2/transactions/getTransactionByDate/{$token}/ZALI.ULUWATU/2026-10-01")->assertOk()->assertJsonCount(1);
         $this->getJson('/api/cloud2/transactions/getTransactionByDate/'.self::TOKEN.'/ZALI.ULUWATU/2026-10-01')->assertUnauthorized(); // old key replaced
 
-        $this->actingAs($admin)->deleteJson('/api/admin/clients/'.$client->id.'/mobile-api-token')->assertOk()->assertJsonPath('data.has_mobile_api_token', false);
+        // Shown again later, to admins only.
+        $this->actingAs($admin)->getJson('/api/admin/clients')->assertJsonPath('data.0.mobile_api_token', $token)
+            ->assertJsonPath('data.0.mobile_api_url', $response->json('url'));
+        $this->assertNotSame($token, \DB::table('clients')->where('id', $client->id)->value('mobile_api_token')); // encrypted at rest
+
+        $this->actingAs($admin)->deleteJson('/api/admin/clients/'.$client->id.'/mobile-api-token')->assertOk()->assertJsonPath('data.has_mobile_api_token', false)
+            ->assertJsonPath('data.mobile_api_token', null);
         $this->getJson("/api/cloud2/transactions/getTransactionByDate/{$token}/ZALI.ULUWATU/2026-10-01")->assertUnauthorized();
 
         $user = User::factory()->forClient($client)->create();
@@ -159,6 +165,7 @@ class MobileApiTest extends TestCase
 
         $key = $this->withToken($secret)->postJson("/api/runner/v1/tenants/{$id}/mobile-api-token")->assertOk()
             ->assertJsonPath('tenant.has_mobile_api_token', true)->json('token');
+        $this->withToken($secret)->getJson('/api/runner/v1/tenants')->assertJsonPath('tenants.0.mobile_api_token', $key);
         $this->assertSame(hash('sha256', $key), Client::find($id)->mobile_api_token_hash);
         $this->getJson("/api/cloud2/transactions/getTransactionByDate/{$key}/PESCADO.SANUR/2026-10-01")->assertOk()->assertExactJson([]);
 
@@ -172,7 +179,8 @@ class MobileApiTest extends TestCase
         $client = Client::factory()->create();
 
         $this->actingAs($admin)->putJson('/api/admin/clients/'.$client->id, ['name' => $client->name, 'mobile_api_token' => self::TOKEN])
-            ->assertOk()->assertJsonPath('data.has_mobile_api_token', true)->assertJsonMissingPath('data.mobile_api_token_hash');
+            ->assertOk()->assertJsonPath('data.has_mobile_api_token', true)->assertJsonPath('data.mobile_api_token', self::TOKEN)
+            ->assertJsonMissingPath('data.mobile_api_token_hash');
         $this->assertSame(hash('sha256', self::TOKEN), $client->fresh()->mobile_api_token_hash);
 
         // Blank keeps it; another client cannot take the same token.
