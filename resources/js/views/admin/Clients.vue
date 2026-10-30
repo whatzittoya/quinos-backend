@@ -2,6 +2,7 @@
 import { computed, onMounted, reactive, ref } from 'vue';
 import { api, ApiError } from '../../api';
 import { useAuth } from '../../stores/auth';
+import ApiAccessModal from '../../components/ApiAccessModal.vue';
 
 const auth = useAuth();
 const clients = ref([]);
@@ -37,43 +38,8 @@ function open(client = null) {
     editing.value = client ? client.id : 0;
 }
 
-// Mobile API key: made on the server; it can be shown again any time.
-const apiKey = ref(null); // { client, token, url }
-
-function showApiKey(client) {
-    apiKey.value = { client: client.name, token: client.mobile_api_token, url: client.mobile_api_url };
-}
-const apiKeyError = ref('');
-const apiKeyBusy = ref(false);
-
-async function generateApiKey(client) {
-    if (client.has_mobile_api_token && !confirm(`Replace the API key of ${client.name}? The app stops working with the old key.`)) return;
-    apiKeyBusy.value = true;
-    apiKeyError.value = '';
-    try {
-        const result = await api(`/admin/clients/${client.id}/mobile-api-token`, { method: 'POST' });
-        apiKey.value = { client: client.name, token: result.token, url: result.url };
-        await load();
-    } catch (e) {
-        apiKeyError.value = e.message;
-    } finally {
-        apiKeyBusy.value = false;
-    }
-}
-
-async function removeApiKey(client) {
-    if (!confirm(`Remove the API key of ${client.name}? The app stops working until a new key is set.`)) return;
-    try {
-        await api(`/admin/clients/${client.id}/mobile-api-token`, { method: 'DELETE' });
-        await load();
-    } catch (e) {
-        apiKeyError.value = e.message;
-    }
-}
-
-function copy(text) {
-    navigator.clipboard?.writeText(text);
-}
+// Client whose API access modal is open.
+const apiAccess = ref(null);
 
 async function save() {
     saving.value = true;
@@ -175,25 +141,6 @@ onMounted(load);
             <button class="btn-primary" @click="open()">Add client</button>
         </div>
 
-        <p v-if="apiKeyError" role="alert" class="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{{ apiKeyError }}</p>
-        <div v-if="apiKey" class="card space-y-3 p-4">
-            <p class="text-sm">
-                Mobile API key for <b>{{ apiKey.client }}</b>.
-            </p>
-            <div class="flex gap-2">
-                <input :value="apiKey.token" readonly class="field font-mono" aria-label="API key">
-                <button class="btn-ghost shrink-0" @click="copy(apiKey.token)">Copy</button>
-            </div>
-            <div>
-                <label class="label">App URL (replace {date} with YYYY-MM-DD)</label>
-                <div class="flex gap-2">
-                    <input :value="apiKey.url" readonly class="field font-mono text-xs" aria-label="App URL">
-                    <button class="btn-ghost shrink-0" @click="copy(apiKey.url)">Copy</button>
-                </div>
-            </div>
-            <button class="btn-ghost" @click="apiKey = null">Done</button>
-        </div>
-
         <div class="card overflow-x-auto">
             <table class="w-full text-left text-sm">
                 <thead class="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
@@ -201,7 +148,7 @@ onMounted(load);
                         <th class="px-4 py-3">Name</th>
                         <th class="px-4 py-3">Quinos login</th>
                         <th class="px-4 py-3">Status</th>
-                        <th class="px-4 py-3">Mobile API key</th>
+                        <th class="px-4 py-3">Mobile API</th>
                         <th class="px-4 py-3" />
                     </tr>
                 </thead>
@@ -216,29 +163,26 @@ onMounted(load);
                             <span :class="c.active ? 'text-green-700' : 'text-slate-400'">{{ c.active ? 'Active' : 'Disabled' }}</span>
                         </td>
                         <td class="whitespace-nowrap px-4 py-3">
-                            <template v-if="c.mobile_api_token">
-                                <code class="text-xs text-slate-600">{{ c.mobile_api_token.slice(0, 8) }}…</code>
-                                <button class="btn-ghost ml-1" @click="showApiKey(c)">Show</button>
-                            </template>
-                            <span v-else-if="c.has_mobile_api_token" class="text-amber-700" title="Set before keys could be shown again. Regenerate to see it.">Set (hidden)</span>
-                            <span v-else class="text-slate-400">Not set</span>
-                            <button class="btn-ghost ml-1" :disabled="apiKeyBusy" @click="generateApiKey(c)">
-                                {{ c.has_mobile_api_token ? 'Regenerate' : 'Generate API key' }}
-                            </button>
-                            <button v-if="c.has_mobile_api_token" class="btn-ghost" @click="removeApiKey(c)">Remove</button>
+                            <span :class="c.has_mobile_api_token ? 'text-green-700' : 'text-slate-400'">{{ c.has_mobile_api_token ? 'Enabled' : 'Not set' }}</span>
                         </td>
                         <td class="space-x-2 px-4 py-3 text-right">
+                            <button class="btn-ghost" @click="apiAccess = c">API access</button>
                             <button class="btn-ghost" @click="openUsers(c)">Users</button>
                             <button class="btn-ghost" @click="open(c)">Edit</button>
                             <button class="btn-danger" @click="remove(c)">Delete</button>
                         </td>
                     </tr>
                     <tr v-if="!clients.length">
-                        <td colspan="4" class="px-4 py-6 text-center text-slate-500">No clients yet.</td>
+                        <td colspan="5" class="px-4 py-6 text-center text-slate-500">No clients yet.</td>
                     </tr>
                 </tbody>
             </table>
         </div>
+
+        <ApiAccessModal
+            v-if="apiAccess" :client="apiAccess" :path="`/admin/clients/${apiAccess.id}/mobile-api-token`"
+            @close="apiAccess = null" @changed="load"
+        />
 
         <div v-if="editing !== null" class="fixed inset-0 z-10 flex items-center justify-center bg-slate-900/40 p-4">
             <form class="card w-full max-w-lg space-y-4 p-6" @submit.prevent="save">
@@ -269,7 +213,7 @@ onMounted(load);
                     >
                     <p class="mt-1 text-xs text-slate-500">
                         To keep the app's current URL, paste the client's old quinoscloud token here. For a new key, use
-                        <b>Generate API key</b> in the client list; <b>Show</b> there displays the current key.
+                        <b>API access</b> in the client list, which also shows the current key and link.
                     </p>
                 </div>
                 <div>
