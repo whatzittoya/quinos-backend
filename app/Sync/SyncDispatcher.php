@@ -85,7 +85,9 @@ class SyncDispatcher
         // Best: queue the job and let a background worker pick it up (no web time limit).
         if (WorkerLauncher::canSpawn()) {
             dispatch($job);
-            WorkerLauncher::ensureRunning();
+            // After the response is sent: the worker inherits the request's connection, and LiteSpeed would
+            // otherwise keep the response open until the worker exits.
+            app()->terminating(fn () => WorkerLauncher::ensureRunning());
 
             return;
         }

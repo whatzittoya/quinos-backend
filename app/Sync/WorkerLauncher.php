@@ -52,7 +52,7 @@ final class WorkerLauncher
         self::markRunning();
 
         exec(sprintf(
-            'cd %s && nohup %s artisan sync:work > /dev/null 2>&1 &',
+            'cd %s && nohup %s artisan sync:work < /dev/null > /dev/null 2>&1 &',
             escapeshellarg(base_path()),
             escapeshellarg(self::phpBinary()),
         ));
