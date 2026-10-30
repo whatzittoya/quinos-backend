@@ -6,6 +6,7 @@ use App\Actions\CreateDefaultShifts;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\ClientResource;
 use App\Models\Client;
+use App\Models\PosTransaction;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
@@ -53,6 +54,28 @@ class ClientController extends Controller
         $client->delete();
 
         return response()->json(['ok' => true]);
+    }
+
+    /** Makes a new mobile API key (replacing any old one) and returns it once, with the app URL. */
+    public function generateMobileToken(Client $client): JsonResponse
+    {
+        $token = bin2hex(random_bytes(20)); // 40 hex characters, the shape of the old quinoscloud tokens
+        $this->setMobileToken($client, $token);
+        // Admin requests are scoped to the client picked in the top bar; this one is about $client.
+        $store = PosTransaction::withoutGlobalScope('client')->where('client_id', $client->id)->whereNotNull('store_code')->latest('date')->value('store_code') ?? '{STORE}';
+
+        return response()->json([
+            'token' => $token,
+            'url' => url("/api/cloud2/transactions/getTransactionByDate/{$token}/{$store}/{date}"),
+            'data' => new ClientResource($client),
+        ]);
+    }
+
+    public function removeMobileToken(Client $client): ClientResource
+    {
+        $client->forceFill(['mobile_api_token_hash' => null])->save();
+
+        return new ClientResource($client);
     }
 
     private function setMobileToken(Client $client, ?string $token): void

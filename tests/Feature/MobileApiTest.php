@@ -121,6 +121,27 @@ class MobileApiTest extends TestCase
         $this->getJson('/api/cloud2/transactions/getTransactionByDate/'.self::TOKEN.'/ZALI.ULUWATU/2026-10-01')->assertUnauthorized();
     }
 
+    public function test_admin_generates_a_key_shown_once_and_can_remove_it(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $client = $this->clientWithToken();
+        $this->import($client, [$this->document(1, 'INV-1', '2026-10-01 10:00:00')]);
+
+        $response = $this->actingAs($admin)->postJson('/api/admin/clients/'.$client->id.'/mobile-api-token')->assertOk();
+        $token = $response->json('token');
+
+        $this->assertMatchesRegularExpression('/^[0-9a-f]{40}$/', $token);
+        $this->assertStringEndsWith("/getTransactionByDate/{$token}/ZALI.ULUWATU/{date}", $response->json('url'));
+        $this->getJson("/api/cloud2/transactions/getTransactionByDate/{$token}/ZALI.ULUWATU/2026-10-01")->assertOk()->assertJsonCount(1);
+        $this->getJson('/api/cloud2/transactions/getTransactionByDate/'.self::TOKEN.'/ZALI.ULUWATU/2026-10-01')->assertUnauthorized(); // old key replaced
+
+        $this->actingAs($admin)->deleteJson('/api/admin/clients/'.$client->id.'/mobile-api-token')->assertOk()->assertJsonPath('data.has_mobile_api_token', false);
+        $this->getJson("/api/cloud2/transactions/getTransactionByDate/{$token}/ZALI.ULUWATU/2026-10-01")->assertUnauthorized();
+
+        $user = User::factory()->forClient($client)->create();
+        $this->actingAs($user)->postJson('/api/admin/clients/'.$client->id.'/mobile-api-token')->assertForbidden();
+    }
+
     public function test_admin_sets_the_token_which_is_stored_hashed_and_never_returned(): void
     {
         $admin = User::factory()->admin()->create();

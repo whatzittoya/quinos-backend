@@ -40,6 +40,8 @@ Route::middleware(['auth:sanctum', 'client.resolve'])->group(function () {
 
     Route::middleware('admin')->prefix('admin')->group(function () {
         Route::apiResource('clients', ClientController::class);
+        Route::post('clients/{client}/mobile-api-token', [ClientController::class, 'generateMobileToken']);
+        Route::delete('clients/{client}/mobile-api-token', [ClientController::class, 'removeMobileToken']);
         Route::apiResource('users', UserController::class)->except('show');
     });
 });

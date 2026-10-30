@@ -37,10 +37,38 @@ function open(client = null) {
     editing.value = client ? client.id : 0;
 }
 
-// 40 hex characters, the same shape as the old quinoscloud tokens. Shown only until the form is saved.
-function generateMobileToken() {
-    const bytes = crypto.getRandomValues(new Uint8Array(20));
-    form.mobile_api_token = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+// Mobile API key: made on the server and shown once (only its hash is stored).
+const apiKey = ref(null); // { client, token, url }
+const apiKeyError = ref('');
+const apiKeyBusy = ref(false);
+
+async function generateApiKey(client) {
+    if (client.has_mobile_api_token && !confirm(`Replace the API key of ${client.name}? The app stops working with the old key.`)) return;
+    apiKeyBusy.value = true;
+    apiKeyError.value = '';
+    try {
+        const result = await api(`/admin/clients/${client.id}/mobile-api-token`, { method: 'POST' });
+        apiKey.value = { client: client.name, token: result.token, url: result.url };
+        await load();
+    } catch (e) {
+        apiKeyError.value = e.message;
+    } finally {
+        apiKeyBusy.value = false;
+    }
+}
+
+async function removeApiKey(client) {
+    if (!confirm(`Remove the API key of ${client.name}? The app stops working until a new key is set.`)) return;
+    try {
+        await api(`/admin/clients/${client.id}/mobile-api-token`, { method: 'DELETE' });
+        await load();
+    } catch (e) {
+        apiKeyError.value = e.message;
+    }
+}
+
+function copy(text) {
+    navigator.clipboard?.writeText(text);
 }
 
 async function save() {
@@ -142,6 +170,25 @@ onMounted(load);
             <button class="btn-primary" @click="open()">Add client</button>
         </div>
 
+        <p v-if="apiKeyError" role="alert" class="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{{ apiKeyError }}</p>
+        <div v-if="apiKey" class="card space-y-3 p-4">
+            <p class="text-sm">
+                New mobile API key for <b>{{ apiKey.client }}</b>. Copy it now: it is shown only once.
+            </p>
+            <div class="flex gap-2">
+                <input :value="apiKey.token" readonly class="field font-mono" aria-label="API key">
+                <button class="btn-ghost shrink-0" @click="copy(apiKey.token)">Copy</button>
+            </div>
+            <div>
+                <label class="label">App URL (replace {date} with YYYY-MM-DD)</label>
+                <div class="flex gap-2">
+                    <input :value="apiKey.url" readonly class="field font-mono text-xs" aria-label="App URL">
+                    <button class="btn-ghost shrink-0" @click="copy(apiKey.url)">Copy</button>
+                </div>
+            </div>
+            <button class="btn-ghost" @click="apiKey = null">Done</button>
+        </div>
+
         <div class="card overflow-x-auto">
             <table class="w-full text-left text-sm">
                 <thead class="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
@@ -149,6 +196,7 @@ onMounted(load);
                         <th class="px-4 py-3">Name</th>
                         <th class="px-4 py-3">Quinos login</th>
                         <th class="px-4 py-3">Status</th>
+                        <th class="px-4 py-3">Mobile API key</th>
                         <th class="px-4 py-3" />
                     </tr>
                 </thead>
@@ -161,6 +209,13 @@ onMounted(load);
                         </td>
                         <td class="px-4 py-3">
                             <span :class="c.active ? 'text-green-700' : 'text-slate-400'">{{ c.active ? 'Active' : 'Disabled' }}</span>
+                        </td>
+                        <td class="whitespace-nowrap px-4 py-3">
+                            <span :class="c.has_mobile_api_token ? 'text-green-700' : 'text-slate-400'">{{ c.has_mobile_api_token ? 'Set' : 'Not set' }}</span>
+                            <button class="btn-ghost ml-2" :disabled="apiKeyBusy" @click="generateApiKey(c)">
+                                {{ c.has_mobile_api_token ? 'Regenerate' : 'Generate API key' }}
+                            </button>
+                            <button v-if="c.has_mobile_api_token" class="btn-ghost" @click="removeApiKey(c)">Remove</button>
                         </td>
                         <td class="space-x-2 px-4 py-3 text-right">
                             <button class="btn-ghost" @click="openUsers(c)">Users</button>
@@ -198,16 +253,13 @@ onMounted(load);
                 </div>
                 <div>
                     <label class="label">Mobile API token</label>
-                    <div class="flex gap-2">
-                        <input
-                            v-model="form.mobile_api_token" class="field font-mono" autocomplete="off" spellcheck="false"
-                            :placeholder="form.has_mobile_api_token ? 'Unchanged' : 'Not set'"
-                        >
-                        <button type="button" class="btn-ghost shrink-0" @click="generateMobileToken">Generate</button>
-                    </div>
+                    <input
+                        v-model="form.mobile_api_token" class="field font-mono" autocomplete="off" spellcheck="false"
+                        :placeholder="form.has_mobile_api_token ? 'Unchanged' : 'Not set'"
+                    >
                     <p class="mt-1 text-xs text-slate-500">
-                        Used in the mobile app's URL: /api/cloud2/transactions/getTransactionByDate/&lt;token&gt;/&lt;store&gt;/&lt;date&gt;.
-                        Copy it before saving; it is not shown again. Pasting the client's old quinoscloud token keeps the app's URL working.
+                        To keep the app's current URL, paste the client's old quinoscloud token here. For a new key, use
+                        <b>Generate API key</b> in the client list.
                     </p>
                 </div>
                 <div>
