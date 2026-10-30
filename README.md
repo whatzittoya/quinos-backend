@@ -43,6 +43,15 @@ The local command is `php artisan local:sync --scheduled`; it syncs today and ye
   client's old quinoscloud token keeps their URL). Only its SHA-256 is stored.
 - **Store:** the upper-case outlet name, e.g. `ZALI.ULUWATU`; matched case-insensitively. An unknown store returns `[]`.
 
+## MCP server for AI assistants
+
+`POST /api/mcp/{key}` (or `/api/mcp` with `Authorization: Bearer {key}`) is a read-only MCP server (Streamable HTTP,
+answered with plain JSON, stateless, so it runs on shared hosting) over the same uploaded `pos` data. The key is the
+client's mobile API key, so an assistant only sees that client. The link is in Admin → Clients → API access.
+
+Tools (`app/Mcp/PosTools.php`): `list_stores`, `sales_summary` (group by day, weekday, hour, shift, sales_type,
+payment, store; max 92 days), `item_sales`, `list_transactions` (max 7 days, paged), `get_transaction`, `void_report`.
+
 ## Tests
 
 ```sh

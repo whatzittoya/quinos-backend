@@ -60,7 +60,7 @@ class ClientController extends Controller
     {
         $token = $client->issueMobileApiToken();
 
-        return response()->json(['token' => $token, 'url' => $client->mobileApiUrl($token), 'data' => new ClientResource($client)]);
+        return response()->json(['token' => $token, 'url' => $client->mobileApiUrl($token), 'mcp_url' => $client->mcpUrl($token), 'data' => new ClientResource($client)]);
     }
 
     public function removeMobileToken(Client $client): ClientResource

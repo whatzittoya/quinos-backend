@@ -23,6 +23,7 @@ class TenantController extends Controller
             'has_mobile_api_token' => filled($client->mobile_api_token_hash),
             'mobile_api_token' => $client->mobile_api_token,
             'mobile_api_url' => $client->mobile_api_token ? $client->mobileApiUrl($client->mobile_api_token) : null,
+            'mcp_url' => $client->mobile_api_token ? $client->mcpUrl($client->mobile_api_token) : null,
         ];
     }
 }

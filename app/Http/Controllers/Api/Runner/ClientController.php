@@ -31,7 +31,7 @@ class ClientController extends Controller
     {
         $client = Client::findOrFail($id);
         $token = $client->issueMobileApiToken();
-        return ['token' => $token, 'url' => $client->mobileApiUrl($token), 'tenant' => TenantController::config($client)];
+        return ['token' => $token, 'url' => $client->mobileApiUrl($token), 'mcp_url' => $client->mcpUrl($token), 'tenant' => TenantController::config($client)];
     }
     public function removeMobileToken(int $id)
     {

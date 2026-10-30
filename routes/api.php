@@ -18,6 +18,10 @@ Route::get('/cloud2/transactions/getTransactionByDate/{token}/{store}/{date}', \
     ->where(['token' => '[A-Za-z0-9]{20,128}', 'date' => '\d{4}-\d{2}-\d{2}'])
     ->middleware('throttle:60,1');
 
+// MCP server for AI assistants over the same data, read-only, with the client's mobile API key.
+Route::match(['get', 'post', 'delete'], '/mcp/{token?}', \App\Http\Controllers\Api\McpController::class)
+    ->where('token', '[A-Za-z0-9]{20,128}');
+
 Route::middleware(['auth:sanctum', 'client.resolve'])->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/me', [AuthController::class, 'me']);

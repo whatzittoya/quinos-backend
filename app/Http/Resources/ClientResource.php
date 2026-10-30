@@ -22,6 +22,7 @@ class ClientResource extends JsonResource
             'has_mobile_api_token' => filled($this->mobile_api_token_hash),
             'mobile_api_token' => $this->mobile_api_token,
             'mobile_api_url' => $this->mobile_api_token ? $this->mobileApiUrl($this->mobile_api_token) : null,
+            'mcp_url' => $this->mobile_api_token ? $this->mcpUrl($this->mobile_api_token) : null,
             'timezone' => $this->timezone,
             'shift_assign_by' => $this->shift_assign_by,
             'active' => $this->active,

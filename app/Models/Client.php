@@ -60,6 +60,12 @@ class Client extends Model
         return url("/api/cloud2/transactions/getTransactionByDate/{$token}/{$store}/{date}");
     }
 
+    /** The MCP server address for AI assistants, with the same key. */
+    public function mcpUrl(string $token): string
+    {
+        return url("/api/mcp/{$token}");
+    }
+
     public function hasQuinosCredentials(): bool
     {
         return filled($this->quinos_email) && filled($this->quinos_password);
