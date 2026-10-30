@@ -43,7 +43,7 @@ class PosTools
                 'name' => 'sales_summary',
                 'title' => 'Sales summary',
                 'description' => 'Totals for a date range (max '.self::MAX_SUMMARY_DAYS.' days): bills, pax, subtotal, discount, service charge, tax, rounding, total, average per bill and per pax. '
-                    .'Voided bills are excluded from the totals and counted separately. Group by day, weekday, hour, shift, sales_type or payment (payment groups by payment method amounts).',
+                    .'Voided bills and FOC bills (free: compliment, wastage, staff meals) are excluded from the totals and counted separately. Group by day, weekday, hour, shift, sales_type or payment (payment groups by payment method amounts).',
                 'inputSchema' => ['type' => 'object', 'required' => ['from'], 'properties' => $range + [
                     'group_by' => ['type' => 'string', 'enum' => ['none', 'day', 'weekday', 'hour', 'shift', 'sales_type', 'payment', 'store'], 'default' => 'day'],
                 ]],
@@ -53,7 +53,7 @@ class PosTools
                 'name' => 'item_sales',
                 'title' => 'Item sales',
                 'description' => 'Quantity sold and net revenue (quantity x unit price - line discount) per item, category or department for a date range (max '.self::MAX_SUMMARY_DAYS.' days). '
-                    .'Voided lines and voided bills are excluded. Modifiers (department OTHER, category MODIFIER, price 0) are left out unless include_modifiers is true.',
+                    .'Voided lines, voided bills and FOC (free) bills are excluded. Modifiers (department OTHER, category MODIFIER, price 0) are left out unless include_modifiers is true.',
                 'inputSchema' => ['type' => 'object', 'required' => ['from'], 'properties' => $range + [
                     'group_by' => ['type' => 'string', 'enum' => ['item', 'category', 'department'], 'default' => 'item'],
                     'sort' => ['type' => 'string', 'enum' => ['revenue', 'quantity'], 'default' => 'revenue'],
@@ -69,7 +69,7 @@ class PosTools
                     .'Set include_lines to also get item and payment lines. Use get_transaction for one bill.',
                 'inputSchema' => ['type' => 'object', 'required' => ['from'], 'properties' => $range + [
                     'include_lines' => ['type' => 'boolean', 'default' => false],
-                    'include_voided' => ['type' => 'boolean', 'default' => true],
+                    'include_voided' => ['type' => 'boolean', 'default' => true, 'description' => 'Include voided and FOC bills.'],
                     'limit' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 200, 'default' => 50],
                     'offset' => ['type' => 'integer', 'minimum' => 0, 'default' => 0],
                 ]],
@@ -87,7 +87,7 @@ class PosTools
             [
                 'name' => 'void_report',
                 'title' => 'Voids',
-                'description' => 'Voided bills and voided lines with their reasons, staff and amounts for a date range (max '.self::MAX_SUMMARY_DAYS.' days).',
+                'description' => 'Voided bills, voided lines (with reasons, staff and amounts) and FOC bills (free: compliment, wastage, staff meals, with what they were paid with) for a date range (max '.self::MAX_SUMMARY_DAYS.' days).',
                 'inputSchema' => ['type' => 'object', 'required' => ['from'], 'properties' => $range],
                 'annotations' => $readOnly,
             ],
@@ -133,12 +133,19 @@ class PosTools
         $groupBy = $args['group_by'] ?? 'day';
         $groups = [];
         $voided = ['bills' => 0, 'total' => 0.0];
+        $foc = ['bills' => 0, 'total' => 0.0];
 
         foreach ($this->bills($from, $to, $args['store'] ?? null) as $bill) {
             $t = $bill->transaction;
-            if (($t['void_transaction'] ?? '0') === '1') {
-                $voided['bills']++;
-                $voided['total'] += (float) $t['total'];
+            if (($t['void_transaction'] ?? '0') !== '0') {
+                // "1" voided, "2" FOC: neither is revenue.
+                if ($t['void_transaction'] === '2') {
+                    $foc['bills']++;
+                    $foc['total'] += (float) $t['total'];
+                } else {
+                    $voided['bills']++;
+                    $voided['total'] += (float) $t['total'];
+                }
 
                 continue;
             }
@@ -186,7 +193,7 @@ class PosTools
         ksort($groups);
 
         return ['from' => $from, 'to' => $to, 'store' => $args['store'] ?? 'all', 'group_by' => $groupBy,
-            'groups' => $this->rows($groups, $groupBy), 'voided_bills' => $voided];
+            'groups' => $this->rows($groups, $groupBy), 'voided_bills' => $voided, 'foc_bills' => $foc];
     }
 
     private function itemSales(array $args): array
@@ -199,8 +206,8 @@ class PosTools
         $groups = [];
 
         foreach ($this->bills($from, $to, $args['store'] ?? null) as $bill) {
-            if (($bill->transaction['void_transaction'] ?? '0') === '1') {
-                continue;
+            if (($bill->transaction['void_transaction'] ?? '0') !== '0') {
+                continue; // voided or FOC
             }
             foreach ($bill->transaction_lines as $line) {
                 if (filled($line['payment_code'] ?? null) || ($line['void_line'] ?? '0') === '1') {
@@ -247,7 +254,7 @@ class PosTools
             $query->where('store_code', strtoupper($args['store']));
         }
         if (! ($args['include_voided'] ?? true)) {
-            $query->where('transaction', 'not like', '%"void_transaction":"1"%');
+            $query->where('transaction', 'like', '%"void_transaction":"0"%');
         }
         $total = $query->clone()->count();
         $bills = $query->skip($offset)->take($limit)->get()->map(fn (PosTransaction $b) => ($args['include_lines'] ?? false)
@@ -276,9 +283,17 @@ class PosTools
         [$from, $to] = $this->range($args, self::MAX_SUMMARY_DAYS);
         $bills = [];
         $lines = [];
+        $foc = [];
 
         foreach ($this->bills($from, $to, $args['store'] ?? null) as $bill) {
             $t = $bill->transaction;
+            if (($t['void_transaction'] ?? '0') === '2') {
+                $foc[] = ['date' => $bill->date->toDateString(), 'invoice_no' => $t['transaction_id'], 'total' => (float) $t['total'], 'name' => $t['name'],
+                    'paid_with' => array_values(array_filter(array_map(fn ($l) => $l['payment_code'] ?? null, $bill->transaction_lines))),
+                    'cashier' => $t['cashier_code'], 'close_time' => $t['close_time']];
+
+                continue;
+            }
             if (($t['void_transaction'] ?? '0') === '1') {
                 $bills[] = ['date' => $bill->date->toDateString(), 'invoice_no' => $t['transaction_id'], 'sales_type' => $t['sales_type'],
                     'total' => (float) $t['total'], 'reason' => $t['void_reason'], 'cashier' => $t['cashier_code'], 'close_time' => $t['close_time']];
@@ -296,7 +311,8 @@ class PosTools
 
         return ['from' => $from, 'to' => $to, 'store' => $args['store'] ?? 'all',
             'voided_bills' => ['count' => count($bills), 'total' => array_sum(array_column($bills, 'total')), 'bills' => $bills],
-            'voided_lines' => ['count' => count($lines), 'amount' => array_sum(array_column($lines, 'amount')), 'lines' => $lines]];
+            'voided_lines' => ['count' => count($lines), 'amount' => array_sum(array_column($lines, 'amount')), 'lines' => $lines],
+            'foc_bills' => ['count' => count($foc), 'total' => array_sum(array_column($foc, 'total')), 'bills' => $foc]];
     }
 
     private function query(): Builder

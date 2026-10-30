@@ -94,7 +94,7 @@ class McpServer
         Sales:
         - Start with list_stores to see the store codes and which business days have data. Days not synced yet return nothing, which is not the same as no sales.
         - Amounts are in the bill currency (IDR). Per bill: total = subtotal - discount + service_charge + tax1 + tax2 + rounding.
-        - Voided bills (void_transaction "1") and voided lines (void_line "1") are not sales; the summary tools leave them out and void_report lists them.
+        - Voided bills (void_transaction "1"), FOC bills (void_transaction "2": compliment, wastage, staff meals) and voided lines (void_line "1") are not sales; the summary tools leave them out and void_report lists them.
         - Modifiers (department OTHER, category MODIFIER, price 0) are add-on notes to an item, not separate sales.
         - Prefer sales_summary and item_sales for analysis; use list_transactions / get_transaction for individual bills.
 

@@ -32,6 +32,9 @@ class McpTest extends TestCase
             $this->payment('CASH', 'CASH', '100000'), $this->payment('BNI', 'CARD', '76550'),
         ]);
         $this->bill(2, '2026-10-01', 'INV-2', ['void_transaction' => '1', 'void_reason' => 'WRONG CLOSED', 'total' => '50000', 'subtotal' => '50000'], []);
+        $this->bill(4, '2026-10-01', 'INV-4', ['void_transaction' => '2', 'name' => 'STAFF MEAL', 'total' => '40000', 'subtotal' => '40000'], [
+            $this->item('B01', 'ICED TEA', 'BEVERAGE', 'TEA', '1', '40000'), $this->payment('COMPLIMENT', 'OTHER', '40000'),
+        ]);
         $this->bill(3, '2026-10-02', 'INV-3', ['sales_type' => 'GOJEK', 'shift_name' => 'Dinner', 'pax' => '1', 'open_time' => '2026-10-02 19:00:00',
             'subtotal' => '60000', 'total' => '60000'], [
             $this->item('F01', 'NASI GORENG', 'FOOD', 'RICE', '1', '60000'), $this->payment('GOJEK', 'OTHER', '60000'),
@@ -111,7 +114,7 @@ class McpTest extends TestCase
     {
         $data = $this->tool('list_stores');
 
-        $this->assertSame([['store' => 'ZALI.ULUWATU', 'first_date' => '2026-10-01', 'last_date' => '2026-10-02', 'days_with_bills' => 2, 'bills' => 3]], $data['stores']);
+        $this->assertSame([['store' => 'ZALI.ULUWATU', 'first_date' => '2026-10-01', 'last_date' => '2026-10-02', 'days_with_bills' => 2, 'bills' => 4]], $data['stores']);
         $this->assertSame('Zali Uluwatu', $data['client']);
     }
 
@@ -121,6 +124,7 @@ class McpTest extends TestCase
         $this->assertSame(['day' => '2026-10-01', 'bills' => 1, 'pax' => 2, 'subtotal' => 160000.0, 'discount' => 10000.0, 'service_charge' => 10500.0,
             'tax' => 16050.0, 'rounding' => 0.0, 'total' => 176550.0, 'avg_per_bill' => 176550.0, 'avg_per_pax' => 88275.0], $byDay['groups'][0]);
         $this->assertSame(['bills' => 1, 'total' => 50000.0], $byDay['voided_bills']);
+        $this->assertSame(['bills' => 1, 'total' => 40000.0], $byDay['foc_bills']); // free bills are not revenue
 
         $byType = $this->tool('sales_summary', ['from' => '2026-10-01', 'to' => '2026-10-02', 'group_by' => 'sales_type']);
         $this->assertSame(['DINE IN', 'GOJEK'], array_column($byType['groups'], 'sales_type'));
@@ -145,9 +149,9 @@ class McpTest extends TestCase
     public function test_bills_and_voids(): void
     {
         $list = $this->tool('list_transactions', ['from' => '2026-10-01', 'limit' => 1]);
-        $this->assertSame([2, 1, 1], [$list['total'], $list['returned'], $list['next_offset']]);
+        $this->assertSame([3, 1, 1], [$list['total'], $list['returned'], $list['next_offset']]); // INV-1, the voided INV-2 and the FOC INV-4
         $this->assertSame(Payload::POS_TRANSACTION, array_keys($list['bills'][0]));
-        $this->assertSame(1, $this->tool('list_transactions', ['from' => '2026-10-01', 'include_voided' => false])['total']);
+        $this->assertSame(1, $this->tool('list_transactions', ['from' => '2026-10-01', 'include_voided' => false])['total']); // no void, no FOC
 
         $bill = $this->tool('get_transaction', ['invoice_no' => 'INV-1']);
         $this->assertCount(6, $bill['TransactionLine']);
@@ -155,6 +159,7 @@ class McpTest extends TestCase
 
         $voids = $this->tool('void_report', ['from' => '2026-10-01', 'to' => '2026-10-02']);
         $this->assertSame('WRONG CLOSED', $voids['voided_bills']['bills'][0]['reason']);
+        $this->assertSame([1, 40000.0, ['COMPLIMENT']], [$voids['foc_bills']['count'], $voids['foc_bills']['total'], $voids['foc_bills']['bills'][0]['paid_with']]);
         $this->assertSame(['PICKLES', 'CANCEL ORDER', -15000.0], [$voids['voided_lines']['lines'][0]['name'], $voids['voided_lines']['lines'][0]['reason'], $voids['voided_lines']['amount']]);
     }
 
