@@ -8,7 +8,7 @@ use Throwable;
 
 /**
  * A small MCP server (Model Context Protocol, Streamable HTTP transport answered with plain JSON) so an AI
- * assistant can read one client's POS data. Stateless: every request carries the client's key, no sessions
+ * assistant can read one client's POS sales and purchasing data. Stateless: every request carries the client's key, no sessions
  * or server-sent events, which suits shared hosting.
  */
 class McpServer
@@ -35,7 +35,7 @@ class McpServer
             $result = match ($message['method']) {
                 'initialize' => $this->initialize($params),
                 'ping' => new \stdClass,
-                'tools/list' => ['tools' => PosTools::definitions()],
+                'tools/list' => ['tools' => array_merge(PosTools::definitions(), PurchaseTools::definitions())],
                 'tools/call' => $this->callTool($params),
                 default => $isNotification ? null : throw new McpError('Method not found: '.$message['method'], -32601),
             };
@@ -53,7 +53,7 @@ class McpServer
         return [
             'protocolVersion' => in_array($requested, self::PROTOCOL_VERSIONS, true) ? $requested : self::PROTOCOL_VERSIONS[0],
             'capabilities' => ['tools' => ['listChanged' => false]],
-            'serverInfo' => ['name' => 'quinos-pos', 'title' => 'Quinos POS data', 'version' => '1.0.0'],
+            'serverInfo' => ['name' => 'quinos-pos', 'title' => 'Quinos POS sales and purchasing', 'version' => '1.1.0'],
             'instructions' => $this->instructions(),
         ];
     }
@@ -62,13 +62,19 @@ class McpServer
     private function callTool(array $params): array
     {
         $name = $params['name'] ?? null;
-        if (! is_string($name) || ! in_array($name, array_column(PosTools::definitions(), 'name'), true)) {
+        $tools = match (true) {
+            ! is_string($name) => null,
+            in_array($name, array_column(PosTools::definitions(), 'name'), true) => new PosTools($this->client),
+            in_array($name, array_column(PurchaseTools::definitions(), 'name'), true) => new PurchaseTools($this->client),
+            default => null,
+        };
+        if ($tools === null) {
             throw new McpError('Unknown tool: '.(is_string($name) ? $name : '(none)'), -32602);
         }
         $arguments = is_array($params['arguments'] ?? null) ? $params['arguments'] : [];
 
         try {
-            $data = (new PosTools($this->client))->call($name, $arguments);
+            $data = $tools->call($name, $arguments);
 
             return ['content' => [['type' => 'text', 'text' => json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRESERVE_ZERO_FRACTION)]], 'isError' => false];
         } catch (InvalidArgumentException $e) {
@@ -83,12 +89,20 @@ class McpServer
     private function instructions(): string
     {
         return <<<TXT
-        POS (point of sale) data for {$this->client->name}, timezone {$this->client->timezone}, read-only.
+        POS sales and purchasing data for {$this->client->name}, timezone {$this->client->timezone}, read-only.
+
+        Sales:
         - Start with list_stores to see the store codes and which business days have data. Days not synced yet return nothing, which is not the same as no sales.
         - Amounts are in the bill currency (IDR). Per bill: total = subtotal - discount + service_charge + tax1 + tax2 + rounding.
         - Voided bills (void_transaction "1") and voided lines (void_line "1") are not sales; the summary tools leave them out and void_report lists them.
         - Modifiers (department OTHER, category MODIFIER, price 0) are add-on notes to an item, not separate sales.
         - Prefer sales_summary and item_sales for analysis; use list_transactions / get_transaction for individual bills.
+
+        Purchasing:
+        - Purchase orders are what was ordered, goods receipts what actually arrived, purchase invoices what is owed (balance = still unpaid).
+        - purchase_summary (basis received or ordered) for spend by supplier, month, category or item; it reports which days are synced.
+        - item_purchase_prices for price history and supplier comparison; payables for unpaid invoices; get_purchase_order to follow one order through receipts and invoices.
+        - Food cost questions combine both: purchases (received) against sales of the same period.
         TXT;
     }
 

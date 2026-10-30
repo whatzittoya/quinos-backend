@@ -49,8 +49,12 @@ The local command is `php artisan local:sync --scheduled`; it syncs today and ye
 answered with plain JSON, stateless, so it runs on shared hosting) over the same uploaded `pos` data. The key is the
 client's mobile API key, so an assistant only sees that client. The link is in Admin → Clients → API access.
 
-Tools (`app/Mcp/PosTools.php`): `list_stores`, `sales_summary` (group by day, weekday, hour, shift, sales_type,
-payment, store; max 92 days), `item_sales`, `list_transactions` (max 7 days, paged), `get_transaction`, `void_report`.
+- Sales (`app/Mcp/PosTools.php`, the uploaded `pos` data): `list_stores`, `sales_summary` (group by day, weekday, hour,
+  shift, sales_type, payment, store; max 92 days), `item_sales`, `list_transactions` (max 7 days, paged),
+  `get_transaction`, `void_report`.
+- Purchasing (`app/Mcp/PurchaseTools.php`, the `purchase` package): `purchase_summary` (received or ordered, by supplier,
+  month, week, category, item, warehouse; max 366 days), `list_purchase_orders`, `get_purchase_order`,
+  `item_purchase_prices`, `payables`.
 
 ## Tests
 
