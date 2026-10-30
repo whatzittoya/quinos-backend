@@ -45,7 +45,7 @@ The local command is `php artisan local:sync --scheduled`; it syncs today and ye
 
 ## MCP server for AI assistants
 
-`POST /api/mcp/{key}` (or `/api/mcp` with `Authorization: Bearer {key}`) is a read-only MCP server (Streamable HTTP,
+`POST /api/mcp/{key}` (or `/api/mcp` with `Authorization: Bearer {key}`) is an MCP server (Streamable HTTP,
 answered with plain JSON, stateless, so it runs on shared hosting) over the same uploaded `pos` data. The key is the
 client's mobile API key, so an assistant only sees that client. The link is in Admin → Clients → API access.
 
@@ -55,6 +55,9 @@ client's mobile API key, so an assistant only sees that client. The link is in A
 - Purchasing (`app/Mcp/PurchaseTools.php`, the `purchase` package): `purchase_summary` (received or ordered, by supplier,
   month, week, category, item, warehouse; max 366 days), `list_purchase_orders`, `get_purchase_order`,
   `item_purchase_prices`, `payables`.
+- Sync (`app/Mcp/SyncTools.php`): `sync_days` pulls up to 31 days from Quinos in the background (packages `pos`,
+  `purchase`, `sales`; the same job as the Sync page) and `sync_status` shows each day. `pos` is normally sent by
+  local_sync; the hosting syncs it only when asked by name (`sync.on_demand_packages`), never nightly.
 
 ## Tests
 

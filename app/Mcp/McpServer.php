@@ -8,7 +8,7 @@ use Throwable;
 
 /**
  * A small MCP server (Model Context Protocol, Streamable HTTP transport answered with plain JSON) so an AI
- * assistant can read one client's POS sales and purchasing data. Stateless: every request carries the client's key, no sessions
+ * assistant can read one client's POS sales and purchasing data, and pull missing days from Quinos. Stateless: every request carries the client's key, no sessions
  * or server-sent events, which suits shared hosting.
  */
 class McpServer
@@ -35,7 +35,7 @@ class McpServer
             $result = match ($message['method']) {
                 'initialize' => $this->initialize($params),
                 'ping' => new \stdClass,
-                'tools/list' => ['tools' => array_merge(PosTools::definitions(), PurchaseTools::definitions())],
+                'tools/list' => ['tools' => array_merge(PosTools::definitions(), PurchaseTools::definitions(), SyncTools::definitions())],
                 'tools/call' => $this->callTool($params),
                 default => $isNotification ? null : throw new McpError('Method not found: '.$message['method'], -32601),
             };
@@ -53,7 +53,7 @@ class McpServer
         return [
             'protocolVersion' => in_array($requested, self::PROTOCOL_VERSIONS, true) ? $requested : self::PROTOCOL_VERSIONS[0],
             'capabilities' => ['tools' => ['listChanged' => false]],
-            'serverInfo' => ['name' => 'quinos-pos', 'title' => 'Quinos POS sales and purchasing', 'version' => '1.1.0'],
+            'serverInfo' => ['name' => 'quinos-pos', 'title' => 'Quinos POS sales and purchasing', 'version' => '1.2.0'],
             'instructions' => $this->instructions(),
         ];
     }
@@ -66,6 +66,7 @@ class McpServer
             ! is_string($name) => null,
             in_array($name, array_column(PosTools::definitions(), 'name'), true) => new PosTools($this->client),
             in_array($name, array_column(PurchaseTools::definitions(), 'name'), true) => new PurchaseTools($this->client),
+            in_array($name, array_column(SyncTools::definitions(), 'name'), true) => new SyncTools($this->client),
             default => null,
         };
         if ($tools === null) {
@@ -89,7 +90,7 @@ class McpServer
     private function instructions(): string
     {
         return <<<TXT
-        POS sales and purchasing data for {$this->client->name}, timezone {$this->client->timezone}, read-only.
+        POS sales and purchasing data for {$this->client->name}, timezone {$this->client->timezone}.
 
         Sales:
         - Start with list_stores to see the store codes and which business days have data. Days not synced yet return nothing, which is not the same as no sales.
@@ -103,6 +104,10 @@ class McpServer
         - purchase_summary (basis received or ordered) for spend by supplier, month, category or item; it reports which days are synced.
         - item_purchase_prices for price history and supplier comparison; payables for unpaid invoices; get_purchase_order to follow one order through receipts and invoices.
         - Food cost questions combine both: purchases (received) against sales of the same period.
+
+        Missing days:
+        - If the days you need are not synced (list_stores for sales, coverage in purchase_summary), pull them with sync_days (package pos for the sales tools, purchase for the purchase tools), wait about a minute, check sync_status, then query again.
+        - Only pull days the question needs; at most 31 days per call.
         TXT;
     }
 

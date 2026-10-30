@@ -5,6 +5,10 @@ return [
     // Data packages synced for every day.
     'packages' => ['purchase', 'sales'],
 
+    // Packages synced only when asked for by name (the MCP sync_days tool), not nightly:
+    // local_sync normally sends the POS bills, this lets an AI pull a missing day itself.
+    'on_demand_packages' => ['pos'],
+
     // Quinos lists come newest-created first. A day sync stops reading a list
     // once it reaches documents created more than this many days before the
     // earliest requested date (documents can be back-dated, but rarely by more).

@@ -28,7 +28,7 @@ class SyncDispatcher
 
         $packages = $packages === null
             ? config('sync.packages')
-            : array_values(array_intersect(config('sync.packages'), $packages));
+            : array_values(array_intersect([...config('sync.packages'), ...config('sync.on_demand_packages')], $packages));
 
         // A report that is already waiting or running on a day is not queued again.
         $busy = SyncDay::where('client_id', $client->id)

@@ -88,7 +88,7 @@ class McpTest extends TestCase
 
         $tools = $this->rpc('tools/list')->assertOk()->json('result.tools');
         $this->assertSame(['list_stores', 'sales_summary', 'item_sales', 'list_transactions', 'get_transaction', 'void_report',
-            'purchase_summary', 'list_purchase_orders', 'get_purchase_order', 'item_purchase_prices', 'payables'], array_column($tools, 'name'));
+            'purchase_summary', 'list_purchase_orders', 'get_purchase_order', 'item_purchase_prices', 'payables', 'sync_days', 'sync_status'], array_column($tools, 'name'));
         $this->assertTrue($tools[0]['annotations']['readOnlyHint']);
         $this->rpc('nope')->assertJsonPath('error.code', -32601);
     }

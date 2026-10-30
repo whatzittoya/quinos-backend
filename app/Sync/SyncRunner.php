@@ -25,7 +25,7 @@ class SyncRunner
         $quinos = QuinosClient::for($client);
         $packages = $packages === null
             ? config('sync.packages')
-            : array_values(array_intersect(config('sync.packages'), $packages));
+            : array_values(array_intersect([...config('sync.packages'), ...config('sync.on_demand_packages')], $packages));
 
         $this->mark($client, $packages, $dates, ['status' => SyncDay::RUNNING, 'error' => null]);
 
@@ -77,6 +77,7 @@ class SyncRunner
         return match ($package) {
             'purchase' => new PurchaseSync($quinos, $client),
             'sales' => new SalesSync($quinos, $client),
+            'pos' => new PosSync($quinos, $client),
             default => throw new \InvalidArgumentException("Unknown sync package {$package}"),
         };
     }
