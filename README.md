@@ -32,6 +32,17 @@ Create an admin-only runner token under **Runner tokens** in the hosted app, the
 
 The local command is `php artisan local:sync --scheduled`; it syncs today and yesterday per tenant timezone, refreshes master data, and uploads acknowledged batches to the hosted runner API.
 
+## Mobile API
+
+`GET /api/cloud2/transactions/getTransactionByDate/{token}/{store}/{date}` serves bills in the old quinoscloud format
+(`[{Transaction, TransactionLine}]`, every value a string or null) for the mobile app. The path is the old one under `/api`, so the app needs just a new base URL.
+
+- **Data:** uploaded by the local runner as the `pos` package (`pos_transactions`). This app never syncs it itself; it is
+  not in `config/sync.php` packages here.
+- **Token:** per client, set under Admin → Clients → Mobile API token (Generate makes a 40-hex token; pasting the
+  client's old quinoscloud token keeps their URL). Only its SHA-256 is stored.
+- **Store:** the upper-case outlet name, e.g. `ZALI.ULUWATU`; matched case-insensitively. An unknown store returns `[]`.
+
 ## Tests
 
 ```sh

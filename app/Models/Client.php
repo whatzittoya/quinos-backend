@@ -15,7 +15,7 @@ class Client extends Model
         'timezone', 'shift_assign_by', 'active',
     ];
 
-    protected $hidden = ['quinos_password'];
+    protected $hidden = ['quinos_password', 'mobile_api_token_hash'];
 
     protected $casts = [
         // Encrypted with APP_KEY; never returned by the API.

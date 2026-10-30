@@ -18,6 +18,8 @@ class ClientResource extends JsonResource
             // The password itself is never sent back.
             'has_quinos_password' => filled($this->quinos_password),
             'quinos_company_id' => $this->quinos_company_id,
+            // Like the password, the mobile API token is never sent back; only whether one is set.
+            'has_mobile_api_token' => filled($this->mobile_api_token_hash),
             'timezone' => $this->timezone,
             'shift_assign_by' => $this->shift_assign_by,
             'active' => $this->active,

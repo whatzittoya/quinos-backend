@@ -13,6 +13,11 @@ use Illuminate\Support\Facades\Route;
 
 Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:10,1');
 
+// Mobile app API, same path as the old quinoscloud one: /api/cloud2/transactions/getTransactionByDate/{token}/{store}/{date}
+Route::get('/cloud2/transactions/getTransactionByDate/{token}/{store}/{date}', \App\Http\Controllers\Api\MobileTransactionController::class)
+    ->where(['token' => '[A-Za-z0-9]{20,128}', 'date' => '\d{4}-\d{2}-\d{2}'])
+    ->middleware('throttle:60,1');
+
 Route::middleware(['auth:sanctum', 'client.resolve'])->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/me', [AuthController::class, 'me']);

@@ -12,6 +12,7 @@ const saving = ref(false);
 const blank = () => ({
     name: '', quinos_email: '', quinos_password: '', quinos_company_id: '',
     timezone: 'Asia/Makassar', active: true, has_quinos_password: false,
+    mobile_api_token: '', has_mobile_api_token: false,
 });
 const form = reactive(blank());
 
@@ -32,8 +33,14 @@ async function load() {
 
 function open(client = null) {
     error.value = '';
-    Object.assign(form, blank(), client ?? {}, { quinos_password: '' });
+    Object.assign(form, blank(), client ?? {}, { quinos_password: '', mobile_api_token: '' });
     editing.value = client ? client.id : 0;
+}
+
+// 40 hex characters, the same shape as the old quinoscloud tokens. Shown only until the form is saved.
+function generateMobileToken() {
+    const bytes = crypto.getRandomValues(new Uint8Array(20));
+    form.mobile_api_token = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
 }
 
 async function save() {
@@ -42,6 +49,7 @@ async function save() {
     try {
         const body = { ...form };
         delete body.has_quinos_password;
+        delete body.has_mobile_api_token;
         if (editing.value === 0) {
             await api('/admin/clients', { method: 'POST', body });
         } else {
@@ -187,6 +195,20 @@ onMounted(load);
                             :placeholder="form.has_quinos_password ? 'Unchanged' : ''"
                         >
                     </div>
+                </div>
+                <div>
+                    <label class="label">Mobile API token</label>
+                    <div class="flex gap-2">
+                        <input
+                            v-model="form.mobile_api_token" class="field font-mono" autocomplete="off" spellcheck="false"
+                            :placeholder="form.has_mobile_api_token ? 'Unchanged' : 'Not set'"
+                        >
+                        <button type="button" class="btn-ghost shrink-0" @click="generateMobileToken">Generate</button>
+                    </div>
+                    <p class="mt-1 text-xs text-slate-500">
+                        Used in the mobile app's URL: /api/cloud2/transactions/getTransactionByDate/&lt;token&gt;/&lt;store&gt;/&lt;date&gt;.
+                        Copy it before saving; it is not shown again. Pasting the client's old quinoscloud token keeps the app's URL working.
+                    </p>
                 </div>
                 <div>
                     <label class="label">Timezone</label>
