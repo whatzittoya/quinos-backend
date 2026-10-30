@@ -142,6 +142,30 @@ class MobileApiTest extends TestCase
         $this->actingAs($user)->postJson('/api/admin/clients/'.$client->id.'/mobile-api-token')->assertForbidden();
     }
 
+    public function test_runner_creates_and_edits_clients_and_issues_their_key(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $secret = Str::random(64);
+        RunnerToken::create(['name' => 'runner', 'token_hash' => hash('sha256', $secret), 'created_by' => $admin->id]);
+
+        $created = $this->withToken($secret)->postJson('/api/runner/v1/tenants', [
+            'name' => 'Pescado Sanur', 'quinos_email' => 'pescado@example.com', 'quinos_password' => 'secret', 'timezone' => 'Asia/Makassar',
+        ])->assertCreated()->assertJsonPath('tenant.name', 'Pescado Sanur')->assertJsonPath('tenant.has_mobile_api_token', false);
+        $id = $created->json('tenant.id');
+        $this->assertNotEmpty($created->json('tenant.shifts')); // default shifts, as when an admin creates one
+
+        $this->withToken($secret)->putJson("/api/runner/v1/tenants/{$id}", ['name' => 'Pescado', 'quinos_password' => ''])
+            ->assertOk()->assertJsonPath('tenant.name', 'Pescado')->assertJsonPath('tenant.quinos_password', 'secret');
+
+        $key = $this->withToken($secret)->postJson("/api/runner/v1/tenants/{$id}/mobile-api-token")->assertOk()
+            ->assertJsonPath('tenant.has_mobile_api_token', true)->json('token');
+        $this->assertSame(hash('sha256', $key), Client::find($id)->mobile_api_token_hash);
+        $this->getJson("/api/cloud2/transactions/getTransactionByDate/{$key}/PESCADO.SANUR/2026-10-01")->assertOk()->assertExactJson([]);
+
+        $this->withToken($secret)->deleteJson("/api/runner/v1/tenants/{$id}/mobile-api-token")->assertOk()->assertJsonPath('tenant.has_mobile_api_token', false);
+        $this->withoutToken()->postJson('/api/runner/v1/tenants', ['name' => 'X'])->assertUnauthorized(); // runner token required
+    }
+
     public function test_admin_sets_the_token_which_is_stored_hashed_and_never_returned(): void
     {
         $admin = User::factory()->admin()->create();

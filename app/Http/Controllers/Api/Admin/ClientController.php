@@ -6,7 +6,6 @@ use App\Actions\CreateDefaultShifts;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\ClientResource;
 use App\Models\Client;
-use App\Models\PosTransaction;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
@@ -23,7 +22,7 @@ class ClientController extends Controller
     {
         $data = $this->validated($request);
         $client = Client::create(Arr::except($data, 'mobile_api_token'));
-        $this->setMobileToken($client, $data['mobile_api_token'] ?? null);
+        self::setMobileToken($client, $data['mobile_api_token'] ?? null);
         $defaults($client);
 
         return (new ClientResource($client))->response()->setStatusCode(201);
@@ -44,7 +43,7 @@ class ClientController extends Controller
         }
 
         $client->update(Arr::except($data, 'mobile_api_token'));
-        $this->setMobileToken($client, $data['mobile_api_token'] ?? null);
+        self::setMobileToken($client, $data['mobile_api_token'] ?? null);
 
         return new ClientResource($client);
     }
@@ -59,16 +58,9 @@ class ClientController extends Controller
     /** Makes a new mobile API key (replacing any old one) and returns it once, with the app URL. */
     public function generateMobileToken(Client $client): JsonResponse
     {
-        $token = bin2hex(random_bytes(20)); // 40 hex characters, the shape of the old quinoscloud tokens
-        $this->setMobileToken($client, $token);
-        // Admin requests are scoped to the client picked in the top bar; this one is about $client.
-        $store = PosTransaction::withoutGlobalScope('client')->where('client_id', $client->id)->whereNotNull('store_code')->latest('date')->value('store_code') ?? '{STORE}';
+        $token = $client->issueMobileApiToken();
 
-        return response()->json([
-            'token' => $token,
-            'url' => url("/api/cloud2/transactions/getTransactionByDate/{$token}/{$store}/{date}"),
-            'data' => new ClientResource($client),
-        ]);
+        return response()->json(['token' => $token, 'url' => $client->mobileApiUrl($token), 'data' => new ClientResource($client)]);
     }
 
     public function removeMobileToken(Client $client): ClientResource
@@ -78,7 +70,7 @@ class ClientController extends Controller
         return new ClientResource($client);
     }
 
-    private function setMobileToken(Client $client, ?string $token): void
+    public static function setMobileToken(Client $client, ?string $token): void
     {
         if (filled($token)) {
             $client->forceFill(['mobile_api_token_hash' => hash('sha256', $token)])->save();
@@ -87,7 +79,13 @@ class ClientController extends Controller
 
     private function validated(Request $request, bool $updating = false, ?Client $client = null): array
     {
-        return $request->validate([
+        return $request->validate(self::rules($client));
+    }
+
+    /** Also used by the runner API, which lets the local app create and edit clients. */
+    public static function rules(?Client $client = null): array
+    {
+        return [
             'name' => ['required', 'string', 'max:255'],
             'quinos_email' => ['nullable', 'email', 'max:255'],
             'quinos_password' => ['nullable', 'string', 'max:255'],
@@ -101,6 +99,6 @@ class ClientController extends Controller
             'timezone' => ['sometimes', 'timezone:all'],
             'shift_assign_by' => ['sometimes', Rule::in(['open_time', 'close_time'])],
             'active' => ['sometimes', 'boolean'],
-        ]);
+        ];
     }
 }

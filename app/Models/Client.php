@@ -35,6 +35,24 @@ class Client extends Model
         return $this->hasMany(ClientShift::class)->orderBy('position');
     }
 
+    /** Makes a new mobile API key (replacing any old one). Only its hash is stored, so this is the one chance to show it. */
+    public function issueMobileApiToken(): string
+    {
+        $token = bin2hex(random_bytes(20)); // 40 hex characters, the shape of the old quinoscloud tokens
+        $this->forceFill(['mobile_api_token_hash' => hash('sha256', $token)])->save();
+
+        return $token;
+    }
+
+    /** The URL the mobile app calls, with the client's store code when bills have been uploaded already. */
+    public function mobileApiUrl(string $token): string
+    {
+        $store = PosTransaction::withoutGlobalScope('client')->where('client_id', $this->id)
+            ->whereNotNull('store_code')->latest('date')->value('store_code') ?? '{STORE}';
+
+        return url("/api/cloud2/transactions/getTransactionByDate/{$token}/{$store}/{date}");
+    }
+
     public function hasQuinosCredentials(): bool
     {
         return filled($this->quinos_email) && filled($this->quinos_password);

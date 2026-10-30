@@ -50,6 +50,10 @@ Route::middleware(['auth:sanctum', 'client.resolve'])->group(function () {
 Route::prefix('runner/v1')->middleware(\App\Http\Middleware\AuthenticateRunner::class)->group(function () {
     Route::get('/tenants', \App\Http\Controllers\Api\Runner\TenantController::class);
     Route::get('/tenants/{id}/sync-days', \App\Http\Controllers\Api\Runner\SyncDaysController::class)->whereNumber('id');
+    Route::post('/tenants', [\App\Http\Controllers\Api\Runner\ClientController::class, 'store']);
+    Route::put('/tenants/{id}', [\App\Http\Controllers\Api\Runner\ClientController::class, 'update'])->whereNumber('id');
+    Route::post('/tenants/{id}/mobile-api-token', [\App\Http\Controllers\Api\Runner\ClientController::class, 'generateMobileToken'])->whereNumber('id');
+    Route::delete('/tenants/{id}/mobile-api-token', [\App\Http\Controllers\Api\Runner\ClientController::class, 'removeMobileToken'])->whereNumber('id');
     Route::post('/imports', [\App\Http\Controllers\Api\Runner\ImportController::class, 'begin']);
     Route::put('/imports/{id}/chunks/{sequence}', [\App\Http\Controllers\Api\Runner\ImportController::class, 'chunk'])->whereNumber('sequence');
     Route::post('/imports/{id}/commit', [\App\Http\Controllers\Api\Runner\ImportController::class, 'commit']);
